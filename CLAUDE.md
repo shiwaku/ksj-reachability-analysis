@@ -27,8 +27,10 @@ output/                   分析出力（gitignored）
 
 - **入力**: 道路リンク / 道路ノード / L6 アクセスリンク（各 parquet）
 - **アルゴリズム**:
-  - 単一始点: 通常の前向き Dijkstra（G, indices=orig_idx）
-  - 複数始点: スーパーソースノード（インデックス = N）を追加し G を (N+1)×(N+1) に拡張。スーパーソース → 各始点ノードへのエッジ（重み=0）を追加し `dijkstra(G_ext, indices=super_src_idx)` で1回実行。結果の先頭 N 要素が各ノードへの最短時間
+  - 始点ごとに個別 Dijkstra（G, indices=orig_idx）を実行し、個別の到達圏マップを出力
+  - 複数始点は `multiprocessing.Pool` で並列実行（`--workers` オプション、デフォルト: `os.cpu_count()`）
+  - fork でグローバル変数（G, valid, safe_idxs 等）を子プロセスに引き継ぐ（pickleコストなし）
+  - 1始点あたり約10秒（埼玉県・949,637リンク）。16並列で100始点 ≈ 63秒
 - **出力**: `output/arrival_map_{名前}.parquet/.qml`、`output/origins_{名前}.geojson/.qml`
 - **パス定数**: `REPO_ROOT = Path(__file__).parent.parent`（`src/` の 1 つ上）
 - **デフォルトデータ**: `network/saitama_pref/` の埼玉県サンプル（事前生成が必要）

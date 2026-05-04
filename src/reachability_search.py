@@ -22,6 +22,8 @@ GeoParquet 形式で出力する。
 import argparse
 import csv
 import json
+import multiprocessing as mp
+import os
 import time
 from pathlib import Path
 
@@ -368,6 +370,28 @@ def build_multisource_graph(G: csr_matrix, orig_snap_infos: list):
     return G_ext, super_src_idx
 
 
+# モジュールレベルグローバル（fork で子プロセスに引き継がれる）
+_WORKER_G          = None
+_WORKER_VALID      = None
+_WORKER_SAFE_IDXS  = None
+_WORKER_ACC_TIME   = None
+_WORKER_MESH_CODES = None
+_WORKER_OUT_DIR    = None
+
+
+def _worker_run(snap):
+    lat, lon, name, nid, s_lat, s_lon, s_m, orig_idx = snap
+    dist_road = sp_dijkstra(_WORKER_G, directed=True, indices=orig_idx)
+    da_road   = np.where(_WORKER_VALID, dist_road[_WORKER_SAFE_IDXS], np.inf)
+    dist_mesh = np.where(da_road < np.inf, da_road + _WORKER_ACC_TIME, np.inf)
+    save_arrival_map(
+        _WORKER_MESH_CODES, dist_mesh,
+        _WORKER_OUT_DIR / f"arrival_map_{name}.parquet",
+        _WORKER_OUT_DIR / f"arrival_map_{name}.qml",
+    )
+    return name
+
+
 def main():
     ap = argparse.ArgumentParser(description="到達圏分析（複数始点対応）")
     ap.add_argument("--links",    default=DEFAULT_LINKS,  help="道路リンク parquet")
@@ -379,6 +403,8 @@ def main():
     ap.add_argument("--orig-csv", default=None,
                     help="始点CSVファイル（lat,lon,name 列）")
     ap.add_argument("--out-dir",  default=DEFAULT_OUT, help="出力ディレクトリ")
+    ap.add_argument("--workers",  type=int, default=os.cpu_count(),
+                    help=f"並列ワーカー数（デフォルト: {os.cpu_count()}）")
     args = ap.parse_args()
 
     origins = []
@@ -427,20 +453,35 @@ def main():
     safe_idxs  = np.where(valid, graph_idxs, 0)
 
     # ── 始点ごとに個別 Dijkstra → 個別到達圏マップを出力 ──────
-    print(f"\n到達時間マップ出力中...")
-    for lat, lon, name, nid, s_lat, s_lon, s_m, orig_idx in snap_results:
-        print(f"  Dijkstra: {name} ...")
-        dist_road = sp_dijkstra(G, directed=True, indices=orig_idx)
-        print(f"    完了  ({time.time()-t0:.1f}s)")
-        da_road   = np.where(valid, dist_road[safe_idxs], np.inf)
-        dist_mesh = np.where(da_road < np.inf, da_road + acc_time, np.inf)
-        save_arrival_map(
-            mesh_codes, dist_mesh,
-            out_dir / f"arrival_map_{name}.parquet",
-            out_dir / f"arrival_map_{name}.qml",
-        )
+    n_workers = min(args.workers, len(snap_results))
+    print(f"\n到達時間マップ出力中... ({n_workers}並列)")
 
-    print(f"  ({time.time()-t0:.1f}s)")
+    global _WORKER_G, _WORKER_VALID, _WORKER_SAFE_IDXS
+    global _WORKER_ACC_TIME, _WORKER_MESH_CODES, _WORKER_OUT_DIR
+    _WORKER_G          = G
+    _WORKER_VALID      = valid
+    _WORKER_SAFE_IDXS  = safe_idxs
+    _WORKER_ACC_TIME   = acc_time
+    _WORKER_MESH_CODES = mesh_codes
+    _WORKER_OUT_DIR    = out_dir
+
+    if n_workers > 1 and len(snap_results) > 1:
+        with mp.Pool(processes=n_workers) as pool:
+            for name in pool.imap_unordered(_worker_run, snap_results):
+                print(f"  完了: {name}  ({time.time()-t0:.1f}s)")
+    else:
+        for snap in snap_results:
+            lat, lon, name, nid, s_lat, s_lon, s_m, orig_idx = snap
+            print(f"  Dijkstra: {name} ...")
+            dist_road = sp_dijkstra(G, directed=True, indices=orig_idx)
+            da_road   = np.where(valid, dist_road[safe_idxs], np.inf)
+            dist_mesh = np.where(da_road < np.inf, da_road + acc_time, np.inf)
+            save_arrival_map(
+                mesh_codes, dist_mesh,
+                out_dir / f"arrival_map_{name}.parquet",
+                out_dir / f"arrival_map_{name}.qml",
+            )
+            print(f"    完了  ({time.time()-t0:.1f}s)")
 
     od_features = []
     for lat, lon, name, nid, s_lat, s_lon, s_m, _ in snap_results:
