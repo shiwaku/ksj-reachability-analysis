@@ -269,7 +269,7 @@ lat,lon,name
 本ツールは国土交通省「国土数値情報」道路データ（N13）を使用する。
 
 - **出典**: 国土数値情報 道路データ / 国土交通省
-- **ダウンロード**: https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N13-v2_1.html
+- **ダウンロード**: https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N13-2024.html
 - **ライセンス**: 国土数値情報利用規約に準ずる
 - **一方通行**: 国土数値情報には一方通行フィールドが存在しないため、全道路を双方向リンクとして扱っている
 
