@@ -133,12 +133,13 @@ python3 src/reachability_search.py \
   --orig 35.8578,139.6490,埼玉県庁 \
   --orig 36.0420,139.4006,東松山市役所
 
-# CSV で始点を一括指定（lat,lon,name 列）
+# CSV で始点を一括指定（lat,lon,name 列）・並列実行
 python3 src/reachability_search.py \
   --links network/saitama_pref/KSJ_N13-24_saitama_pref_道路リンク.parquet \
   --nodes network/saitama_pref/KSJ_N13-24_saitama_pref_道路ノード.parquet \
   --access network/saitama_pref/KSJ_N13-24_saitama_pref_アクセスリンク_L6.parquet \
-  --orig-csv input/origins.csv
+  --orig-csv input/origins.csv \
+  --workers 16
 ```
 
 `input/origins.csv` のフォーマット（サンプル: `input/origins.csv` として同梱）:
