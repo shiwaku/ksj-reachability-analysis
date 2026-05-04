@@ -135,6 +135,15 @@ python3 src/reachability_search.py \
   --orig-csv input/origins.csv
 ```
 
+`input/origins.csv` のフォーマット（サンプル: `input/origins.csv` として同梱）:
+
+```csv
+lat,lon,name
+35.8578,139.6490,埼玉県庁
+36.0420,139.4006,東松山市役所
+35.9063,139.6239,大宮駅
+```
+
 緯度・経度は Google マップで地点を右クリックするとコピーできる。
 
 ---
