@@ -6,17 +6,17 @@
 
 ## アルゴリズム
 
-始点ごとに個別 Dijkstra を実行し、各始点の到達圏マップを個別に出力する。複数始点は `multiprocessing.Pool` で並列実行する（デフォルト: CPU コア数）。
+始点ごとに個別 Dijkstra を実行し、各始点の到達圏マップを個別に出力する。
 
 逆向きグラフ不要。外部プログラム不使用。`scipy.sparse.csgraph.dijkstra` で実装。
 
 **処理時間の目安（埼玉県・949,637 リンク）:**
 
-| 始点数 | シングル | 16 並列 |
-|---|---|---|
-| 1 | 約 10 秒 | 約 10 秒 |
-| 10 | 約 100 秒 | 約 10 秒 |
-| 100 | 約 1,000 秒 | 約 63 秒 |
+| 始点数 | 処理時間 |
+|---|---|
+| 1 | 約 10 秒 |
+| 10 | 約 100 秒 |
+| 100 | 約 1,000 秒 |
 
 ---
 
@@ -133,13 +133,12 @@ python3 src/reachability_search.py \
   --orig 35.8578,139.6490,埼玉県庁 \
   --orig 36.0420,139.4006,東松山市役所
 
-# CSV で始点を一括指定（lat,lon,name 列）・並列実行
+# CSV で始点を一括指定（lat,lon,name 列）
 python3 src/reachability_search.py \
   --links network/saitama_pref/KSJ_N13-24_saitama_pref_道路リンク.parquet \
   --nodes network/saitama_pref/KSJ_N13-24_saitama_pref_道路ノード.parquet \
   --access network/saitama_pref/KSJ_N13-24_saitama_pref_アクセスリンク_L6.parquet \
-  --orig-csv input/origins.csv \
-  --workers 16
+  --orig-csv input/origins.csv
 ```
 
 `input/origins.csv` のフォーマット（サンプル: `input/origins.csv` として同梱）:
@@ -165,7 +164,6 @@ lat,lon,name
 | `--orig lat,lon[,name]` | 埼玉県庁 | 始点（複数回指定可）。名前省略時は座標が名前になる |
 | `--orig-csv path` | — | 始点 CSV（lat,lon,name 列） |
 | `--out-dir` | `output/` | 出力ディレクトリ |
-| `--workers N` | CPU コア数 | 並列ワーカー数。始点ごとに個別 Dijkstra を並列実行する |
 
 ---
 
