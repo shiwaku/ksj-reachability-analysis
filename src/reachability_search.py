@@ -418,38 +418,28 @@ def main():
         print(f"始点: {name}  ノード={nid}  ({s_lat:.5f},{s_lon:.5f})  snap={s_m:.0f}m")
         snap_results.append((lat, lon, name, nid, s_lat, s_lon, s_m, idx))
 
-    if len(origins) == 1:
-        _, _, _, _, _, _, _, orig_idx = snap_results[0]
-        print(f"\n前向きDijkstra（始点1点）...")
-        dist_road = sp_dijkstra(G, directed=True, indices=orig_idx)
-        print(f"  完了  ({time.time()-t0:.1f}s)")
-    else:
-        print(f"\nMulti-source Dijkstra（始点{len(origins)}点）...")
-        G_ext, super_src_idx = build_multisource_graph(
-            G, [(idx, 0.0) for *_, idx in snap_results]
-        )
-        dist_all = sp_dijkstra(G_ext, directed=True, indices=super_src_idx)
-        dist_road = dist_all[:G.shape[0]]
-        print(f"  完了  ({time.time()-t0:.1f}s)")
-
     print("\nメッシュ別到達時間計算中...")
     road_nids  = access["road_node"].astype(int).to_numpy()
     acc_time   = (access["time_001min"].astype(float) * 0.01).to_numpy()
     mesh_codes = access["mesh_code"].astype(str).to_numpy()
-
     graph_idxs = np.array([n2i.get(int(rn), -1) for rn in road_nids], dtype=np.int32)
     valid      = graph_idxs >= 0
     safe_idxs  = np.where(valid, graph_idxs, 0)
-    da_road    = np.where(valid, dist_road[safe_idxs], np.inf)
-    dist_mesh  = np.where(da_road < np.inf, da_road + acc_time, np.inf)
-    print(f"  ({time.time()-t0:.1f}s)")
 
-    orig_label = "_".join(name for _, _, name, *_ in snap_results)
-    out_parquet = out_dir / f"arrival_map_{orig_label}.parquet"
-    out_qml     = out_dir / f"arrival_map_{orig_label}.qml"
-
+    # ── 始点ごとに個別 Dijkstra → 個別到達圏マップを出力 ──────
     print(f"\n到達時間マップ出力中...")
-    save_arrival_map(mesh_codes, dist_mesh, out_parquet, out_qml)
+    for lat, lon, name, nid, s_lat, s_lon, s_m, orig_idx in snap_results:
+        print(f"  Dijkstra: {name} ...")
+        dist_road = sp_dijkstra(G, directed=True, indices=orig_idx)
+        print(f"    完了  ({time.time()-t0:.1f}s)")
+        da_road   = np.where(valid, dist_road[safe_idxs], np.inf)
+        dist_mesh = np.where(da_road < np.inf, da_road + acc_time, np.inf)
+        save_arrival_map(
+            mesh_codes, dist_mesh,
+            out_dir / f"arrival_map_{name}.parquet",
+            out_dir / f"arrival_map_{name}.qml",
+        )
+
     print(f"  ({time.time()-t0:.1f}s)")
 
     od_features = []
@@ -468,11 +458,12 @@ def main():
             },
         })
 
+    origins_label = "_".join(name for _, _, name, *_ in snap_results)
     od_geojson = {"type": "FeatureCollection", "features": od_features}
-    od_path = out_dir / f"origins_{orig_label}.geojson"
+    od_path = out_dir / f"origins_{origins_label}.geojson"
     with open(od_path, "w", encoding="utf-8") as f:
         json.dump(od_geojson, f, ensure_ascii=False, indent=2)
-    od_qml_path = out_dir / f"origins_{orig_label}.qml"
+    od_qml_path = out_dir / f"origins_{origins_label}.qml"
     write_od_qml(od_qml_path)
     print(f"  {od_path.name}")
     print(f"  {od_qml_path.name}")
